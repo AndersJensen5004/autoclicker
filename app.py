@@ -18,7 +18,7 @@ class Win98Style(ttk.Style):
         self.configure('.',
                        background='#c0c0c0',
                        foreground='black',
-                       font=('MS Sans Serif', 8))
+                       font=('monospace', 10))
 
         self.configure('TButton',
                        padding=3,
@@ -26,7 +26,13 @@ class Win98Style(ttk.Style):
                        background='#c0c0c0')
 
         self.map('TButton',
-                 background=[('active', '#d4d0c8'), ('pressed', '#bab5ab')])
+                 background=[('active', '#d4d0c8'), ('pressed', '#bab5ab')],
+                 relief=[('pressed', 'sunken')])
+
+
+        self.configure('TButton.border',
+                       relief='raised',
+                       borderwidth=2)
 
         self.configure('TCheckbutton',
                        background='#c0c0c0')
@@ -181,9 +187,10 @@ class AutoClicker:
         start_delay = random.uniform(self.click_interval / 8, self.click_interval / 6)
         time.sleep(start_delay)
 
-        variation_period_min = 2.76
-        variation_period_max = 5.4
-        variation_amplitude = 0.113
+        # Variables for varying the base interval
+        variation_period_min = 2.76  # Minimum time in seconds for a variation cycle
+        variation_period_max = 5.4  # Maximum time in seconds for a variation cycle
+        variation_amplitude = 0.113  # Maximum change in base interval
 
         start_time = time.time()
         current_variation_period = random.uniform(variation_period_min, variation_period_max)
@@ -193,21 +200,26 @@ class AutoClicker:
             time_in_cycle = (current_time - start_time) % current_variation_period
             cycle_progress = time_in_cycle / current_variation_period
 
+            # Slowly vary the base interval using a sine wave
             current_base_interval = base_interval * (1 + variation_amplitude * math.sin(cycle_progress * 2 * math.pi))
 
+            # Randomize the click interval using a normal distribution centered around the current base interval
             skew = random.uniform(0.844, 1.26)
             mean_interval = current_base_interval * skew
             randomized_interval = random.gauss(mean_interval, mean_interval * 0.12)
 
-            if random.random() < 0.05:
+            # Add random tiny delays using an exponential distribution to simulate human-like behavior
+            if random.random() < 0.05:  # 5% chance to add a delay
                 tiny_delay_factor = random.uniform(1.235, 2.367)
                 max_tiny_delay = 3.06 * base_interval
                 tiny_delay = min(random.expovariate(1 / (base_interval * tiny_delay_factor)), max_tiny_delay)
                 time.sleep(tiny_delay)
 
+            # Simulate mouse click
             mouse_controller.click(mouse.Button.left, 1)
             time.sleep(randomized_interval)
 
+            # Slightly move the mouse to simulate natural movement if jitters are enabled
             if self.enable_jitters.get():
                 current_position = mouse_controller.position
                 jitter_magnitude = random.gauss(0, 1.6)
@@ -215,6 +227,7 @@ class AutoClicker:
                 offset_y = random.randint(-3, 3) + jitter_magnitude
                 mouse_controller.position = (current_position[0] + offset_x, current_position[1] + offset_y)
 
+            # Check if we need to start a new variation cycle
             if time_in_cycle >= current_variation_period:
                 start_time = current_time
                 current_variation_period = random.uniform(variation_period_min, variation_period_max)
