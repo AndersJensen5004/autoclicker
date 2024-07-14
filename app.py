@@ -1,13 +1,11 @@
 import tkinter as tk
 from tkinter import ttk
-
-import ttkthemes
-from PIL import Image, ImageTk
 from pynput import mouse, keyboard
 import threading
 import time
 import random
 import math
+import queue
 
 
 class Win98Style(ttk.Style):
@@ -73,6 +71,9 @@ class AutoClicker:
         self.master.geometry("300x220")
         self.master.configure(bg='#c0c0c0')
         self.master.resizable(False, False)
+
+        self.click_queue = queue.Queue()
+        self.master.after(100, self.check_queue)
 
         # Set the icon
         icon = tk.PhotoImage(file="autoclicker_icon.png")
@@ -165,19 +166,31 @@ class AutoClicker:
         else:
             self.start_clicking()
 
+    def check_queue(self):
+        try:
+            while True:
+                button, state = self.click_queue.get_nowait()
+                if button == "start_button":
+                    self.start_button.state(state)
+                elif button == "stop_button":
+                    self.stop_button.state(state)
+        except queue.Empty:
+            pass
+        finally:
+            self.master.after(100, self.check_queue)
+
     def start_clicking(self):
         self.is_clicking = True
-        self.start_button.state(["pressed", "disabled"])
-        self.stop_button.state(["!disabled"])
+        self.click_queue.put(("start_button", ["pressed", "disabled"]))
+        self.click_queue.put(("stop_button", ["!disabled"]))
         self.click_thread = threading.Thread(target=self.click_loop)
+        self.click_thread.daemon = True  # This allows the thread to be terminated when the main program exits
         self.click_thread.start()
 
     def stop_clicking(self):
         self.is_clicking = False
-        self.start_button.state(["!pressed", "!disabled"])
-        self.stop_button.state(["disabled"])
-        if hasattr(self, 'click_thread'):
-            self.click_thread.join()
+        self.click_queue.put(("start_button", ["!pressed", "!disabled"]))
+        self.click_queue.put(("stop_button", ["disabled"]))
 
     def click_loop(self):
         mouse_controller = mouse.Controller()
@@ -232,10 +245,16 @@ class AutoClicker:
                 start_time = current_time
                 current_variation_period = random.uniform(variation_period_min, variation_period_max)
 
+            if not self.is_clicking:
+                break
+
     def on_closing(self):
         self.stop_clicking()
         self.keyboard_listener.stop()
         self.mouse_listener.stop()
+        # Wait for the click_thread to finish if it exists
+        if hasattr(self, 'click_thread') and self.click_thread.is_alive():
+            self.click_thread.join(timeout=1.0)
         self.master.destroy()
 
 if __name__ == "__main__":
